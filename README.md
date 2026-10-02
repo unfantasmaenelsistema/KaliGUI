@@ -34,6 +34,27 @@ python3 app.py
 
 ---
 
+## 🔐 Autenticación
+
+KaliGUI escucha en todas las interfaces de red (necesario para acceder desde
+el host vía reenvío de puertos de VirtualBox), así que **pide usuario y
+contraseña** antes de dejar lanzar ninguna herramienta — sin esto, cualquiera
+que llegara al puerto podría ejecutar `nmap`/`sqlmap`/`hydra`/`msfconsole`
+contra cualquier objetivo sin autenticarse.
+
+- `install.sh` genera la contraseña automáticamente (paso `[6/6]`) y la
+  muestra al final de la instalación.
+- Se guarda en el fichero local `.kaligui_auth` (permisos `600`, nunca se
+  sube a git). Si lo pierdes, bórralo y reinicia KaliGUI: se genera uno
+  nuevo.
+- Usuario: `kaligui` — Contraseña: la que te haya mostrado la instalación
+  (o el primer arranque, si no pasaste por `install.sh`).
+- El navegador te pedirá las credenciales la primera vez que accedas a cada
+  origen (`localhost:5000`, `<IP>:5000`...); las recordará mientras la
+  pestaña/sesión del navegador siga abierta.
+
+---
+
 ## Acceso desde VirtualBox / Docker
 
 | Escenario | URL |
@@ -44,6 +65,8 @@ python3 app.py
 | Máquina víctima en Docker | Apuntar a la IP del contenedor (`docker inspect`) |
 
 Para acceso desde el host en VirtualBox: **Red → Reenvío de puertos → guest 5000 → host 5000**.
+
+> En todos los casos el navegador pedirá las credenciales de `.kaligui_auth` (ver [Autenticación](#-autenticación)).
 
 ---
 

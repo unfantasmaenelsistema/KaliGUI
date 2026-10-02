@@ -279,6 +279,13 @@ ok "Script de arranque creado: ./start.sh"
 # Acceso directo en el escritorio
 DESKTOP_DIR="$HOME/Desktop"
 if [[ -d "$DESKTOP_DIR" ]]; then
+    # El icono propio es opcional: si no se ha incluido static/icon.png en
+    # el repo, usamos un icono generico del sistema en vez de una ruta rota.
+    if [[ -f "$SCRIPT_DIR/static/icon.png" ]]; then
+        DESKTOP_ICON="$SCRIPT_DIR/static/icon.png"
+    else
+        DESKTOP_ICON="utilities-terminal"
+    fi
     DESKTOP_FILE="$DESKTOP_DIR/KaliGUI.desktop"
     cat > "$DESKTOP_FILE" << DESKTOP
 [Desktop Entry]
@@ -287,7 +294,7 @@ Type=Application
 Name=KaliGUI
 Comment=Interfaz web para herramientas de Kali
 Exec=bash -c "cd $SCRIPT_DIR && ./start.sh"
-Icon=$SCRIPT_DIR/static/icon.png
+Icon=$DESKTOP_ICON
 Terminal=true
 Categories=Security;Network;
 DESKTOP
