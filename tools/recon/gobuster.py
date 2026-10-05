@@ -30,9 +30,11 @@ class GobusterTool(Tool):
                   help="Extensiones a probar separadas por coma",
                   group="Options"),
         ToolField("status_codes", "Códigos HTTP a mostrar", "text",
-                  default="200,204,301,302,307,401,403",
-                  placeholder="200,301,302,403",
-                  help="Códigos de respuesta que se consideran válidos",
+                  default="",
+                  placeholder="200,301,302,403 (vacío = blacklist por defecto de gobuster)",
+                  help="Códigos de respuesta a incluir (-s). Gobuster ya excluye 404 por "
+                       "defecto (-b); no se puede combinar -s y -b, así que se deja vacío "
+                       "salvo que el usuario especifique algo.",
                   group="Options"),
         ToolField("threads", "Threads", "number", default=10,
                   min_val=1, max_val=100,

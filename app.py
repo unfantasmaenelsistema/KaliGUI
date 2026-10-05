@@ -49,10 +49,14 @@ def api_tools():
     return jsonify(result)
 
 
-@app.route("/api/sessions")
-def api_sessions():
+def _load_sessions():
+    """Load all sessions sorted by actual start time (newest first).
+
+    Session filenames are random UUID prefixes, not chronological, so they
+    can't be used for ordering - sort by the stored started_at instead.
+    """
     sessions = []
-    for fname in sorted(os.listdir(SESSIONS_DIR), reverse=True):
+    for fname in os.listdir(SESSIONS_DIR):
         if fname.endswith(".json"):
             path = os.path.join(SESSIONS_DIR, fname)
             try:
@@ -60,7 +64,13 @@ def api_sessions():
                     sessions.append(json.load(f))
             except Exception:
                 pass
-    return jsonify(sessions[:50])
+    sessions.sort(key=lambda s: s.get("started_at") or "", reverse=True)
+    return sessions
+
+
+@app.route("/api/sessions")
+def api_sessions():
+    return jsonify(_load_sessions()[:50])
 
 
 @app.route("/api/sessions/<session_id>")
@@ -217,15 +227,7 @@ def api_running():
 def api_dashboard():
     """Return stats for the dashboard."""
     import collections
-    sessions = []
-    for fname in sorted(os.listdir(SESSIONS_DIR), reverse=True):
-        if fname.endswith(".json"):
-            path = os.path.join(SESSIONS_DIR, fname)
-            try:
-                with open(path) as f:
-                    sessions.append(json.load(f))
-            except Exception:
-                pass
+    sessions = _load_sessions()
 
     total = len(sessions)
     success = sum(1 for s in sessions if s.get("return_code") == 0)
@@ -390,4 +392,4 @@ def handle_kill(data):
 
 if __name__ == "__main__":
     print("KaliGUI iniciando en http://0.0.0.0:5000")
-    socketio.run(app, host="0.0.0.0", port=5000, debug=False)
+    socketio.run(app, host="0.0.0.0", port=5000, debug=False, allow_unsafe_werkzeug=True)
