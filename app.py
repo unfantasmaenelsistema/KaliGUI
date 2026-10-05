@@ -8,10 +8,11 @@ if _PROJECT_ROOT not in sys.path:
 
 import uuid
 import json
+import secrets
 import threading
 import subprocess
 from datetime import datetime
-from flask import Flask, render_template, jsonify, request, make_response
+from flask import Flask, render_template, jsonify, request, make_response, Response
 from flask_socketio import SocketIO, emit
 
 from tools import TOOLS, CATEGORIES
@@ -19,10 +20,89 @@ from cheatsheets import CHEATSHEETS
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.urandom(24)
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
+# No cors_allowed_origins="*": KaliGUI ejecuta herramientas de ataque reales
+# contra el objetivo que le pidas, así que una pagina de otro origen no debe
+# poder abrir una conexion Socket.IO contra este servidor desde el navegador
+# de quien lo tenga abierto. La UI se sirve desde este mismo origen.
+socketio = SocketIO(app, async_mode="threading")
 
 SESSIONS_DIR = os.path.join(os.path.dirname(__file__), "sessions")
 os.makedirs(SESSIONS_DIR, exist_ok=True)
+
+
+def esc(value) -> str:
+    """Escapa texto para insertarlo de forma segura en HTML generado a mano.
+
+    Varios campos de herramientas (p.ej. 'Flags adicionales' de nmap, o los
+    campos de hydra, que no tienen patron de validacion) aceptan texto libre
+    y acaban en session['command']. Sin esto, exportar e abrir el informe
+    HTML de una sesion con un payload como <img src=x onerror=alert(1)>
+    ejecutaria ese script en el navegador de quien lo abra.
+    """
+    return (
+        str(value)
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+        .replace("'", "&#039;")
+    )
+
+# --- Autenticacion basica ---------------------------------------------------
+# KaliGUI no tiene "usuarios": es una herramienta de un solo operador, pero
+# por defecto escucha en todas las interfaces (necesario para el reenvio de
+# puertos de VirtualBox descrito en el README), asi que SIN esto cualquiera
+# que llegue al puerto podria lanzar nmap/sqlmap/hydra/msfconsole contra
+# cualquier objetivo sin autenticarse. install.sh genera la contraseña; si se
+# arranca sin pasar por el instalador, se genera aqui y se imprime una vez.
+AUTH_FILE = os.path.join(_PROJECT_ROOT, ".kaligui_auth")
+AUTH_USERNAME = "kaligui"
+
+
+def _load_or_create_password() -> str:
+    if os.path.exists(AUTH_FILE):
+        with open(AUTH_FILE) as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith("KALIGUI_PASSWORD="):
+                    pwd = line.split("=", 1)[1].strip()
+                    if pwd:
+                        return pwd
+
+    pwd = secrets.token_urlsafe(16)
+    with open(AUTH_FILE, "w") as f:
+        f.write(f"KALIGUI_PASSWORD={pwd}\n")
+    try:
+        os.chmod(AUTH_FILE, 0o600)
+    except OSError:
+        pass
+    print("[KaliGUI] No se encontro contraseña de acceso: se ha generado una nueva.")
+    print(f"[KaliGUI]   Usuario:    {AUTH_USERNAME}")
+    print(f"[KaliGUI]   Contraseña: {pwd}")
+    print(f"[KaliGUI]   (guardada en {AUTH_FILE} - no la compartas ni la subas a git)")
+    return pwd
+
+
+AUTH_PASSWORD = _load_or_create_password()
+
+
+def _check_auth(username: str, password: str) -> bool:
+    return secrets.compare_digest(username, AUTH_USERNAME) and secrets.compare_digest(password, AUTH_PASSWORD)
+
+
+def _unauthorized():
+    return Response(
+        "Autenticación requerida para usar KaliGUI.",
+        401,
+        {"WWW-Authenticate": 'Basic realm="KaliGUI"'},
+    )
+
+
+@app.before_request
+def require_auth():
+    auth = request.authorization
+    if not auth or not _check_auth(auth.username or "", auth.password or ""):
+        return _unauthorized()
 
 WORDLIST_DIRS = [
     "/usr/share/wordlists",
@@ -112,14 +192,14 @@ def api_export(session_id, fmt):
         status_color = "#3fb950" if ok else "#ff7b72"
         status_text = "Completado" if ok else "Error"
         output_html = "\n".join(
-            '<div class="line">' + line.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;") + '</div>'
+            '<div class="line">' + esc(line) + '</div>'
             for line in s.get("output", [])
         )
         html = f"""<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>KaliGUI - {s['tool']} #{s['id']}</title>
+<title>KaliGUI - {esc(s['tool'])} #{esc(s['id'])}</title>
 <style>
   body {{ background:#090c10; color:#c9d1d9; font-family:'Courier New',monospace; padding:30px; margin:0; }}
   h1 {{ color:#00ff88; font-size:20px; letter-spacing:3px; margin-bottom:6px; }}
@@ -134,14 +214,14 @@ def api_export(session_id, fmt):
 </style>
 </head>
 <body>
-<h1>KaliGUI - {s['tool'].upper()}</h1>
+<h1>KaliGUI - {esc(s['tool'].upper())}</h1>
 <div class="meta">
-  Sesion <span>#{s['id']}</span><br>
-  Inicio <span>{s['started_at']}</span><br>
-  Fin <span>{s.get('finished_at','?')}</span><br>
-  Estado <span class="status">{status_text} (codigo {s.get('return_code','?')})</span>
+  Sesion <span>#{esc(s['id'])}</span><br>
+  Inicio <span>{esc(s['started_at'])}</span><br>
+  Fin <span>{esc(s.get('finished_at','?'))}</span><br>
+  Estado <span class="status">{esc(status_text)} (codigo {esc(s.get('return_code','?'))})</span>
 </div>
-<div class="cmd">$ {s['command']}</div>
+<div class="cmd">$ {esc(s['command'])}</div>
 <div class="output">{output_html}</div>
 <div class="footer">
   Generado por KaliGUI &nbsp;&middot;&nbsp;
@@ -296,6 +376,17 @@ def api_wordlists():
     return jsonify(result)
 
 
+@socketio.on("connect")
+def handle_connect():
+    # Defensa en profundidad: aunque before_request ya protege el handshake
+    # HTTP inicial de Socket.IO, se repite la comprobacion explicitamente
+    # aqui para no depender de detalles internos de como Flask-SocketIO
+    # conecta con el ciclo de peticion de Flask.
+    auth = request.authorization
+    if not auth or not _check_auth(auth.username or "", auth.password or ""):
+        return False
+
+
 @socketio.on("run_tool")
 def handle_run_tool(data):
     tool_name = data.get("tool")
@@ -391,5 +482,10 @@ def handle_kill(data):
 
 
 if __name__ == "__main__":
-    print("KaliGUI iniciando en http://0.0.0.0:5000")
+    print("KaliGUI iniciando en http://0.0.0.0:5000 (usuario: kaligui, contraseña en .kaligui_auth)")
+    # Flask-SocketIO >=5.4 se niega a arrancar con el servidor de desarrollo
+    # de Werkzeug salvo que se le indique explicitamente. KaliGUI es una
+    # herramienta local de un solo operador (no un servicio publico), y
+    # desde este cambio ya requiere autenticacion, asi que es el uso
+    # previsto por la propia libreria para ese flag.
     socketio.run(app, host="0.0.0.0", port=5000, debug=False, allow_unsafe_werkzeug=True)

@@ -43,6 +43,27 @@ python3 app.py
 
 ---
 
+## 🔐 Autenticación
+
+KaliGUI escucha en todas las interfaces de red (necesario para acceder desde
+el host vía reenvío de puertos de VirtualBox), así que **pide usuario y
+contraseña** antes de dejar lanzar ninguna herramienta — sin esto, cualquiera
+que llegara al puerto podría ejecutar `nmap`/`sqlmap`/`hydra`/`msfconsole`
+contra cualquier objetivo sin autenticarse.
+
+- `install.sh` genera la contraseña automáticamente (paso `[6/6]`) y la
+  muestra al final de la instalación.
+- Se guarda en el fichero local `.kaligui_auth` (permisos `600`, nunca se
+  sube a git). Si lo pierdes, bórralo y reinicia KaliGUI: se genera uno
+  nuevo.
+- Usuario: `kaligui` — Contraseña: la que te haya mostrado la instalación
+  (o el primer arranque, si no pasaste por `install.sh`).
+- El navegador te pedirá las credenciales la primera vez que accedas a cada
+  origen (`localhost:5000`, `<IP>:5000`...); las recordará mientras la
+  pestaña/sesión del navegador siga abierta.
+
+---
+
 ## Acceso desde VirtualBox / Docker
 
 | Escenario | URL |
@@ -53,6 +74,8 @@ python3 app.py
 | Máquina víctima en Docker | Apuntar a la IP del contenedor (`docker inspect`) |
 
 Para acceso desde el host en VirtualBox: **Red → Reenvío de puertos → guest 5000 → host 5000**.
+
+> En todos los casos el navegador pedirá las credenciales de `.kaligui_auth` (ver [Autenticación](#-autenticación)).
 
 ---
 
@@ -108,6 +131,11 @@ Para acceso desde el host en VirtualBox: **Red → Reenvío de puertos → guest
 ---
 
 ## Changelog
+
+**2026-10-05 — Seguridad: autenticación obligatoria + XSS en informe HTML**
+
+- 🔐 El servidor escuchaba en `0.0.0.0:5000` sin ningún tipo de autenticación: cualquiera que llegara al puerto (red local, o el reenviado desde VirtualBox) podía lanzar `nmap`/`sqlmap`/`hydra`/`msfconsole` contra cualquier objetivo. Ahora pide usuario/contraseña (ver [Autenticación](#-autenticación)).
+- 🐛 **XSS real** en el informe HTML exportado (`/api/sessions/<id>/export/html`): no escapaba `command`, `tool`, `id` ni las fechas, solo el *output*. Un payload en campos sin validar (p.ej. "Flags adicionales") se ejecutaba al abrir el informe.
 
 **2026-10-05 — Fixes tras una prueba real end-to-end** (clon limpio, instalación desde cero en Kali, ejecución real de cada herramienta contra objetivos de laboratorio propios, no solo revisión de código):
 

@@ -1,4 +1,15 @@
+# Credenciales de acceso generadas por install.sh / app.py — nunca a git.
+.kaligui_auth
+
+# Entorno virtual Python
+venv/
 __pycache__/
 *.pyc
-venv/
+
+# Generado por install.sh
+start.sh
+
+# Historial de sesiones (contiene objetivos y salidas de herramientas reales)
 sessions/*.json
+
+.DS_Store

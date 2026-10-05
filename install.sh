@@ -52,7 +52,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # ── 1. Sistema ──────────────────────────────────────────────
 sep
-echo -e "${BOLD}[1/5] Verificando sistema${NC}"
+echo -e "${BOLD}[1/6] Verificando sistema${NC}"
 sep
 
 if grep -qi "kali" /etc/os-release 2>/dev/null; then
@@ -66,7 +66,7 @@ info "Arquitectura: $(uname -m)"
 
 # ── 2. Dependencias base ────────────────────────────────────
 sep
-echo -e "${BOLD}[2/5] Actualizando apt e instalando dependencias base${NC}"
+echo -e "${BOLD}[2/6] Actualizando apt e instalando dependencias base${NC}"
 sep
 
 info "Actualizando lista de paquetes..."
@@ -84,7 +84,7 @@ done
 
 # ── 3. Entorno virtual Python ───────────────────────────────
 sep
-echo -e "${BOLD}[3/5] Configurando entorno Python${NC}"
+echo -e "${BOLD}[3/6] Configurando entorno Python${NC}"
 sep
 
 VENV_DIR="$SCRIPT_DIR/venv"
@@ -105,7 +105,7 @@ pip install --quiet -r "$SCRIPT_DIR/requirements.txt" && ok "Dependencias Python
 
 # ── 4. Herramientas de Kali ─────────────────────────────────
 sep
-echo -e "${BOLD}[4/5] Verificando herramientas de Kali${NC}"
+echo -e "${BOLD}[4/6] Verificando herramientas de Kali${NC}"
 sep
 
 # Herramientas instalables vía apt
@@ -204,7 +204,7 @@ fi
 
 # ── 5. Wordlists ────────────────────────────────────────────
 sep
-echo -e "${BOLD}[5/5] Verificando wordlists${NC}"
+echo -e "${BOLD}[5/6] Verificando wordlists${NC}"
 sep
 
 WORDLIST_DIR="/usr/share/wordlists"
@@ -236,6 +236,23 @@ else
     fi
 fi
 
+# ── 6. Autenticacion ────────────────────────────────────────
+sep
+echo -e "${BOLD}[6/6] Configurando autenticación${NC}"
+sep
+
+AUTH_FILE="$SCRIPT_DIR/.kaligui_auth"
+if [[ -f "$AUTH_FILE" ]]; then
+    ok "Ya existe una contraseña de acceso en .kaligui_auth"
+else
+    info "Generando contraseña de acceso (KaliGUI escucha en todas las interfaces de red,"
+    info "necesario para acceder desde el host vía VirtualBox, así que requiere login)..."
+    KALIGUI_PASSWORD="$(python3 -c 'import secrets; print(secrets.token_urlsafe(16))')"
+    printf 'KALIGUI_PASSWORD=%s\n' "$KALIGUI_PASSWORD" > "$AUTH_FILE"
+    chmod 600 "$AUTH_FILE"
+    ok "Contraseña generada y guardada en .kaligui_auth (no se sube a git)"
+fi
+
 # ── Crear start.sh ──────────────────────────────────────────
 sep
 echo -e "${BOLD}Creando script de arranque${NC}"
@@ -262,6 +279,13 @@ ok "Script de arranque creado: ./start.sh"
 # Acceso directo en el escritorio
 DESKTOP_DIR="$HOME/Desktop"
 if [[ -d "$DESKTOP_DIR" ]]; then
+    # El icono propio es opcional: si no se ha incluido static/icon.png en
+    # el repo, usamos un icono generico del sistema en vez de una ruta rota.
+    if [[ -f "$SCRIPT_DIR/static/icon.png" ]]; then
+        DESKTOP_ICON="$SCRIPT_DIR/static/icon.png"
+    else
+        DESKTOP_ICON="utilities-terminal"
+    fi
     DESKTOP_FILE="$DESKTOP_DIR/KaliGUI.desktop"
     cat > "$DESKTOP_FILE" << DESKTOP
 [Desktop Entry]
@@ -270,7 +294,7 @@ Type=Application
 Name=KaliGUI
 Comment=Interfaz web para herramientas de Kali
 Exec=bash -c "cd $SCRIPT_DIR && ./start.sh"
-Icon=$SCRIPT_DIR/static/icon.png
+Icon=$DESKTOP_ICON
 Terminal=true
 Categories=Security;Network;
 DESKTOP
@@ -296,6 +320,11 @@ IFACE_IP=$(ip route get 1.1.1.1 2>/dev/null | awk '{print $7; exit}')
 if [[ -n "$IFACE_IP" ]]; then
     echo -e "  ${CYAN}  http://$IFACE_IP:5000${NC}  (desde tu host/red local)"
 fi
+echo ""
+echo -e "  ${BOLD}${YELLOW}Credenciales de acceso (te las pedirá el navegador):${NC}"
+echo -e "  ${CYAN}  Usuario:    kaligui${NC}"
+echo -e "  ${CYAN}  Contraseña: $(cut -d= -f2 "$AUTH_FILE")${NC}"
+echo -e "  ${YELLOW}  (guardadas en .kaligui_auth — no las compartas ni las subas a git)${NC}"
 echo ""
 echo -e "  ${BLUE}unfantasmaenelsistema.com${NC}"
 echo ""
