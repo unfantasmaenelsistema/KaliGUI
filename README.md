@@ -6,6 +6,15 @@ Interfaz web local para herramientas CLI de Kali Linux. Pensada para prácticas 
 
 ---
 
+## Capturas
+
+| | |
+|---|---|
+| ![Catálogo de herramientas](docs/screenshots/01-overview.jpg) | ![gobuster con valores por defecto](docs/screenshots/02-gobuster-fix.jpg) |
+| ![volatility3 ejecutando de verdad](docs/screenshots/03-volatility-fix.jpg) | ![Dashboard con orden cronológico](docs/screenshots/04-dashboard-orden-cronologico.jpg) |
+
+---
+
 ## Instalación rápida
 
 ```bash
@@ -118,6 +127,25 @@ Para acceso desde el host en VirtualBox: **Red → Reenvío de puertos → guest
 - **Dashboard** — estadísticas de uso, herramientas más usadas y sesiones recientes
 - **Modo claro/oscuro** — con persistencia en localStorage
 - **Preview del comando** — muestra el comando exacto que se va a ejecutar antes de lanzarlo
+
+---
+
+## Changelog
+
+**2026-10-05 — Seguridad: autenticación obligatoria + XSS en informe HTML**
+
+- 🔐 El servidor escuchaba en `0.0.0.0:5000` sin ningún tipo de autenticación: cualquiera que llegara al puerto (red local, o el reenviado desde VirtualBox) podía lanzar `nmap`/`sqlmap`/`hydra`/`msfconsole` contra cualquier objetivo. Ahora pide usuario/contraseña (ver [Autenticación](#-autenticación)).
+- 🐛 **XSS real** en el informe HTML exportado (`/api/sessions/<id>/export/html`): no escapaba `command`, `tool`, `id` ni las fechas, solo el *output*. Un payload en campos sin validar (p.ej. "Flags adicionales") se ejecutaba al abrir el informe.
+
+**2026-10-05 — Fixes tras una prueba real end-to-end** (clon limpio, instalación desde cero en Kali, ejecución real de cada herramienta contra objetivos de laboratorio propios, no solo revisión de código):
+
+- 🐛 **La app no arrancaba siguiendo el README tal cual.** Con las versiones actuales de Flask-SocketIO/Werkzeug, `socketio.run()` (modo `threading`) exige `allow_unsafe_werkzeug=True` o lanza `RuntimeError` y la app crashea al instante. Corregido en `app.py`.
+- 🐛 **`volatility3` fallaba siempre** con `[ERROR] Herramienta no encontrada`. El paquete (pip o apt) instala el binario como `vol`, nunca como `volatility3` — comprobado vía `entry_points` del paquete. Corregido en `tools/forensics/volatility.py`.
+- 🐛 **`gobuster` fallaba con los valores por defecto del formulario.** El campo "Códigos HTTP a mostrar" venía precargado con `-s ...`, pero gobuster ≥3.6 ya aplica su propia blacklist (`-b 404`) y rechaza combinar ambas. Se dejó el campo vacío por defecto en `tools/recon/gobuster.py`.
+- 🐛 **El Dashboard y el Historial no mostraban las sesiones en orden real.** Se ordenaban por el nombre de fichero (un UUID aleatorio), no por la hora de inicio. Corregido en `app.py` (nueva función `_load_sessions()`, usada por `/api/sessions` y `/api/dashboard`).
+- 🧹 Se eliminaron del repositorio los `.pyc` de `__pycache__/` que estaban commiteados por error y se añadió `.gitignore` (`__pycache__/`, `venv/`, `sessions/*.json`).
+
+Herramientas verificadas con ejecución real tras los fixes: `nmap`, `gobuster`, `sqlmap`, `hydra`, `nikto`, `john`, `binwalk`, `volatility3`. El resto (`whatweb`, `theHarvester`, `enum4linux`, `wpscan`, `hashcat`, `crackmapexec`, `aircrack-ng`, `msfconsole`, `nc`) se instalaron correctamente pero no se ejecutaron en esta pasada — si ves algo raro en alguna, abre un issue.
 
 ---
 

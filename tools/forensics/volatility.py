@@ -31,7 +31,10 @@ class VolatilityTool(Tool):
     ]
 
     def build_command(self, params: dict) -> list[str]:
-        cmd = ["volatility3", "-f", params["memdump"], params["plugin"]]
+        # The volatility3 PyPI/apt package installs the binary as "vol",
+        # never as "volatility3" - confirmed via `pip show volatility3`
+        # entry_points (console_scripts: vol, volshell).
+        cmd = ["vol", "-f", params["memdump"], params["plugin"]]
         if params.get("extra_flags"):
             cmd += params["extra_flags"].split()
         return cmd
