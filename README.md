@@ -39,7 +39,7 @@
 7. [Acceso desde VirtualBox / Docker](#-acceso-desde-virtualbox--docker)
 8. [Añadir una Herramienta Nueva](#-añadir-una-herramienta-nueva)
 9. [Estructura del Proyecto](#-estructura-del-proyecto)
-10. [Tecnologías Utilizadas](#-tecnologías-utilizadas)
+10. [Tecnologías Utilizadas](#️-tecnologías-utilizadas)
 11. [Changelog](#-changelog)
 12. [Créditos y Licencia](#-créditos-y-licencia)
 
